@@ -17,13 +17,14 @@ typedef enum {
 } TypeTag;
 
 enum {
-	TYPE_MUT = 0x2
+	TYPE_MUT = 0x2,
 	TYPE_OPT = 0x1
 };
 
 #define PTR_OF(type, u64) (type*)((u64) & 0x0000ffffffffffff)
 #define DATA_OF(type, u64) (type)((u64) & 0xffff000000000000)
 
+typedef struct TypeEntry* TypeRef;
 const char* const TYPE_ANON = "";
 
 typedef struct {
@@ -32,21 +33,26 @@ typedef struct {
 	TypeRef child;
 } TypeUnderlying;
 
-typedef struct {
-	size_t len;
-	TypeField data[0];
-} TypeFields;
+typedef struct TypeEntry {
+	char* name; // NULL = not present
+	TypeUnderlying type;
+} TypeEntry;
 
 typedef struct {
 	const char* name;
 	TypeRef type;
 } TypeField;
 
+typedef struct {
+	size_t len;
+	TypeField data[0];
+} TypeFields;
+
 static bool type_is_eq(TypeRef from, TypeRef to) {
 	#define FROM (from->type)
 	#define TO (to->type)
 	if (FROM.tag != TO.tag) return false;
-	switch (from->type) {
+	switch (FROM.tag) {
 	case TYPE_ARRAY:
 	case TYPE_PTR:
 	case TYPE_SLICE:
@@ -64,12 +70,12 @@ static bool type_is_eq(TypeRef from, TypeRef to) {
 
 	case TYPE_ENUM: return from == to;
 	case TYPE_UNION:
-	case TYPE_STRUCT:
+	case TYPE_STRUCT:;
 		TypeFields* from_fields = (TypeFields*)FROM.data;
 		TypeFields* to_fields = (TypeFields*)TO.data;
 		if (from_fields->len != to_fields->len) return false;
-		for (size_t i = 0; i < to_fields->len; fields++) {
-			if (!type_is_eq(to_fields->data[i], from_fields->data[i])) return false;
+		for (size_t i = 0; i < to_fields->len; i++) {
+			if (!type_is_eq(to_fields->data[i].type, from_fields->data[i].type)) return false;
 		}
 		return true;
 	}
@@ -133,13 +139,6 @@ static bool type_can_cast(TypeRef from, TypeRef to) {
 	#undef TO
 }
 
-typedef struct {
-	char* name; // NULL = not present
-	TypeUnderlying type;
-} TypeEntry;
-
-typedef TypeEntry* TypeRef;
-
 #define TYPETABLE_CAP 0x10000
 
 typedef struct {
@@ -154,6 +153,24 @@ typedef struct {
 	DECL(type); DECL(str);
 	#undef DECL
 } TypeTable;
+
+static TypeRef table_add(TypeTable* table, const char* name, TypeUnderlying type) {
+	if (table->count == TYPETABLE_CAP) {
+		fprintf(stderr, "TypeTable: out of slots\n");
+		abort();
+	}
+
+	size_t ref = table_hash(name) % TYPETABLE_CAP;
+	for (;;) {
+		if (table->entries[ref].name == NULL) {
+			table->entries[ref].name = name;
+			table->entries[ref].type = type;
+			break;
+		}
+		ref = (ref+1) % TYPETABLE_CAP;
+	}
+	return &table->entries[ref];
+}
 
 static void table_init(TypeTable* table) {
 	memset(table, 0, sizeof(TypeTable));
@@ -183,26 +200,9 @@ static void table_init(TypeTable* table) {
 	MAKE_TYPE(void, VOID, 0);
 	MAKE_TYPE(type, TYPE, 0);
 
-	table->type_str = table_add(table, ANON, (TypeUnderlying){.tag=TYPE_SLICE, .data=0, .child=table->type_u8});
+	table->type_str = table_add(table, TYPE_ANON, (TypeUnderlying){.tag=TYPE_SLICE, .data=0, .child=table->type_u8});
 
 	#undef MAKE_TYPE
-}
-
-static TypeRef table_add(TypeTable* table, const char* name, TypeUnderlying type) {
-	if (table->count == TYPETABLE_CAP) {
-		fprintf(stderr, "TypeTable: out of slots\n");
-		abort();
-	}
-
-	size_t ref = table_hash(name) % TYPETABLE_CAP;
-	for (;;) {
-		if (table->entries[ref].name == NULL) {
-			table->entries[ref]
-			break;
-		}
-		ref = (ref+1) % TYPETABLE_CAP;
-	}
-	return &table->entries[ref];
 }
 
 static TypeRef table_get(TypeTable* table, const char* name) {
