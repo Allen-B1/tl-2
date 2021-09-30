@@ -31,14 +31,14 @@ design: C
  - `[]mut T` - mutable slice that points to `T`
 
 Slices are built with
-`(ptr|arr|slice)[start..end]` syntax, where `end` is exclusive.
-Slices can automatically convert to pointers
+`x[start..end]` syntax, which indexes array, pointer, or slice `x` from \[`start`, `end`).
+Slices can automatically coerce into pointers
 (`[]T` => `*T`, `[]mut T` => `*mut T`, `*T`). 
 
-`slice.len` returns the length of the array.
+`slice.len` returns the length of a slice.
 
-Slices and pointers can be made `null`able by adding a `?` in front; `void` can
-convert to `slices` and pointers.
+Pointers and slices can be made optional by adding a `?` in front; `void` can
+convert to optional types.
 
 ## Structs
 Structs represent a contiguous memory location, laid out sequentially.
@@ -55,22 +55,32 @@ type Color = struct {
 let yellow = Color { 255, 255, 0 };
 let sky = Color { .red = 3, .green = 3, .blue = 200 };
 let red u32 = sky.red;
+```
 
+The `into` keyword can be used in the first field
+of a struct, which allows pointers to the struct to be automatically
+coerced into the pointer to the type of the `into` field.
+
+```rust
 type ColorA = struct {
-	into Color; // keyword into
+	into color Color; // keyword into
 	alpha u32;
 }
 
 let green = ColorA { Color{0, 255, 0}, 128 };
-let clr *Color = &green;
+let clr *Color = &green; // == &green.color
 ```
 
 ## Unions
+A union type can hold one field at a time. The pointer
+to a union value is equal to the pointer to any of its fields,
+and can be automatically coerced.
+
 ```rust
 type A = union {
 	i i32;
 	f f32;
-	s [n]u8;
+	s []u8;
 };
 
 let int = A{.i=3};
