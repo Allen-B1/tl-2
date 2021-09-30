@@ -1,9 +1,9 @@
 design: C  
  + namespaces/methods  
- + optionals & slices   
+ + optionals & slices & `into`   
  + immutability by default  
  + better string handling  
- + modern stdlib  
+ + better stdlib?  
 `.` operator: arrays, slices, `struct`, `union` only!
 
 # Types
@@ -12,7 +12,7 @@ design: C
  - `bool` - `true` or `false`
  - `i8, i16, i32, i64, u8, u16, u32, u64, usize` - signed/unsigned integers
  - `f16, f32, f64, f80, f128` - floating point. `f80` and `f128` fall back to `f80` or `f64` if they're not available.
- - `char` - same representation as `u32`, represents unicode character?
+ - `varargs` - C's `va_list`
 
 ### Compile-Time Only Types
  - `type` - represents a type
@@ -55,6 +55,14 @@ type Color = struct {
 let yellow = Color { 255, 255, 0 };
 let sky = Color { .red = 3, .green = 3, .blue = 200 };
 let red u32 = sky.red;
+
+type ColorA = struct {
+	into Color; // keyword into
+	alpha u32;
+}
+
+let green = ColorA { Color{0, 255, 0}, 128 };
+let clr *Color = &green;
 ```
 
 ## Unions
