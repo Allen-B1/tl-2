@@ -7,24 +7,30 @@ design: C
 `.` operator: arrays, slices, `struct`, `union` only!
 
 # Types
-## Primitive Types
+## Types of Types
+### Primitive Types
  - `void` - contains one value, `null`
  - `bool` - `true` or `false`
  - `i8, i16, i32, i64, u8, u16, u32, u64, usize` - signed/unsigned integers
  - `f16, f32, f64, f80, f128` - floating point. `f80` and `f128` fall back to `f80` or `f64` if they're not available.
  - `varargs` - C's `va_list`
+ - `type` - represents a type. only available during compile time.
 
-### Compile-Time Only Types
- - `type` - represents a type
- - generic int - infinite-size integer, casts to any integer type
- - generic float - `f128`, casts to any floating-point type
+### Arrays
+ - `[N]T`- array of N `T`s
 
-## Arrays
- - `[N]T`- array of t Ns
+An array is a contiguous location of memory. The pointer to 
+an array is equal to the pointer to the first element
+of that array; in other words
 
-`arr.len` returns the length of the array.
+```
+(*void)(&arr) == (*void)(&arr[0])
+```
 
-## Pointers & Slices
+Arrays can be indexed with bracket syntax (`arr[idx]`). Arrays cannot be passed
+by value as a function parameter.
+
+### Pointers & Slices
  - `*T` - immutable pointer to `T`
  - `*mut T` - mutable pointer to `T`
  - `[]T` - immutable slice that points to `T`
@@ -40,7 +46,7 @@ Slices can automatically coerce into pointers
 Pointers and slices can be made optional by adding a `?` in front; `void` can
 convert to optional types.
 
-## Structs
+### Structs
 Structs represent a contiguous memory location, laid out sequentially.
 Fields are laid out in memory in the order they are declared.
 The pointer to the struct is equal to the pointer to the first field.
@@ -59,7 +65,7 @@ let red u32 = sky.red;
 
 The `into` keyword can be used in the first field
 of a struct, which allows pointers to the struct to be automatically
-coerced into the pointer to the type of the `into` field.
+coerced into the pointer to the type of the `into` field, as described in the next section.
 
 ```rust
 type ColorA = struct {
