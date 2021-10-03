@@ -16,6 +16,9 @@ design: C
  - `varargs` - C's `va_list`
  - `type` - represents a type. only available during compile time.
 
+All numeric types have associated constants `T::min` and `T::max` describing the minimum and maximum value
+of that type.
+
 ### Arrays
  - `[N]T`- array of N `T`s
 
@@ -77,7 +80,7 @@ let green = ColorA { Color{0, 255, 0}, 128 };
 let clr *Color = &green; // == &green.color
 ```
 
-## Unions
+### Unions
 A union type can hold one field at a time. The pointer
 to a union value is equal to the pointer to any of its fields,
 and can be automatically coerced.
@@ -94,7 +97,7 @@ let float = A{.f=2.56};
 let str = A{.s="a string"};
 ```
 
-## Enums
+### Enums
 Every member declared inside of an `enum` becomes a `const` declaration.
 
 ```rust
@@ -109,11 +112,18 @@ let a = Side::TOP;
 let b = Side::BOTTOM;
 ```
 
-## Associated `const`s declared
- - `T::size` - size of type T
- - `T::align` - alignment of type T
- - `T::max` - maximum value of type T
- - `T::min` - minimum value of type T
+## Type Conversions
+### Coercion
+Type F can coerce into type T iff:
+ - F is equal to T
+ - F and T are integer types; the size of F is smaller than the size of T; the signedness of F is the same as T
+ - F and T are floating point types
+ - F is an `enum` type or `bool` and T is an integer type that F fits inside of
+ - F is `void` and T is an optional type
+ - F is a pointer type with the element type of T or `void`; T is a pointer type with the same element type as F or `void`; F is mutable if T is mutable
+ - F is a slice type and T is a pointer type with the same element type as F or `void`; F is mutable if T is mutable 
+ - F is a pointer to a union type and T is a pointer whose element type is the type of one of the fields of F's element type
+ - F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
 
 ## "Methods"
 If a function's namespace is the same as a given type `T` and 
@@ -124,11 +134,27 @@ the first argument of the function is either:
 
 then a value of type `T` `val` can call the function like so: `val.func_name(arg2, arg3...)`.
 
-## `typeof`
+## Built-in functions
+
+### `sizeof`
+Returns the size of a given type.
+
+```rust
+usize sizeof(T type);
+```
+
+### `alignof`
+Returns the alignment of a given type.
+
+```rust
+usize alignof(T type);
+```
+
+### `typeof`
 Compile-time macro function.
 
 ```rust
-macro typeof(val);
+type typeof(val);
 ```
 
 # Declarations

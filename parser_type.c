@@ -1,3 +1,9 @@
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
 typedef enum {
 	TYPE_VOID,
 	TYPE_BOOL, // .data = optional
@@ -14,6 +20,8 @@ typedef enum {
 	TYPE_STRUCT, // .data = pointer TypeFields*
 	TYPE_UNION, // .data = pointer TypeFields*
 	TYPE_ENUM, // .child
+
+	TYPE_FUNC, // .data = pointer TypeFunc*, .child = return type
 } TypeTag;
 
 enum {
@@ -48,6 +56,12 @@ typedef struct {
 	TypeField data[0];
 } TypeFields;
 
+typedef struct {
+	bool varardic;
+	size_t args_len;
+	TypeRef args[0];
+} TypeFunc;
+
 static bool type_is_eq(TypeRef from, TypeRef to) {
 	#define FROM (from->type)
 	#define TO (to->type)
@@ -76,6 +90,15 @@ static bool type_is_eq(TypeRef from, TypeRef to) {
 		if (from_fields->len != to_fields->len) return false;
 		for (size_t i = 0; i < to_fields->len; i++) {
 			if (!type_is_eq(to_fields->data[i].type, from_fields->data[i].type)) return false;
+		}
+		return true;
+
+	case TYPE_FUNC:;
+		TypeFunc* from_data = (TypeFunc*)FROM.data;
+		TypeFunc* to_data = (TypeFunc*)TO.data;
+		if (from_data->args_len != to_data->args_len || from_data->varardic != to_data->varardic) return false;
+		for (size_t i = 0; i < from_data->args_len; i++) {
+			if (!type_is_eq(from_data->args[i], to_data->args[i])) return false;
 		}
 		return true;
 	}
@@ -108,6 +131,9 @@ static bool type_can_coerce(TypeRef from, TypeRef to) {
 			((FROM.tag == TYPE_PTR || FROM.tag == TO.tag) && type_is_eq(FROM.child, TO.child) && 
 				(TO.data & TYPE_OPT != 0 || FROM.data & TYPE_OPT == 0) &&
 				(TO.data & TYPE_MUT == 0 || FROM.data & TYPE_MUT != 0));
+
+	case TYPE_FUNC:
+		return type_is_eq(from, to);
 	}
 }
 
@@ -133,10 +159,19 @@ static bool type_can_cast(TypeRef from, TypeRef to) {
 	case TYPE_PTR:
 		return (FROM.tag == TYPE_VOID && TO.data & TYPE_OPT != 0) ||
 			(FROM.tag == TYPE_PTR);
+
+	case TYPE_FUNC:
+		return type_is_eq(from, to);
 	}
 
 	#undef FROM
 	#undef TO
+}
+
+static bool type_is_runtime(TypeRef type) {
+	if (type->type.tag == TYPE_TYPE) return false;
+	if (type->type.tag == TYPE_INT && type->type.data == 0) return false;
+	return true;
 }
 
 #define TYPETABLE_CAP 0x10000
