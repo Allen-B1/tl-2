@@ -18,6 +18,7 @@ inline static size_t table_hash(char* str) {
 typedef enum {
 	NODE_LET,
 	NODE_CONST,
+	NODE_FUNC,
 
 	NODE_BLOCK,
 
@@ -45,7 +46,6 @@ typedef struct {
 	size_t current_scope;
 } Parser;
 
-
 typedef struct {
 	Node node;
 	TypeRef type;
@@ -59,13 +59,33 @@ typedef struct {
 	bool is_mut;
 } NodeLet;
 
-typedef NodeLet NodeConst;
+typedef struct {
+	bool is_mut;
+	char* name;
+	NodeExpr* type;
+} FuncArg;
 
 typedef struct {
 	Node node;
 	size_t len;
 	Node* nodes[0];
 } NodeBlock;
+
+typedef struct {
+	Node node;
+	char* ident;
+	NodeExpr* ret_type;
+
+	bool is_varardic;
+	char* arg_varardic; // ident
+
+	NodeBlock* body; // optional
+
+	size_t args_len;
+	FuncArg args[];
+} NodeFunc;
+
+typedef NodeLet NodeConst;
 
 typedef struct {
 	NodeExpr expr;
@@ -339,7 +359,7 @@ static NodeExpr* parse_func_call(Parser* parser) {
 		}
 
 		consume(parser);
-		return call;
+		return (NodeExpr*)call;
 	}
 
 	size_t cap = 1;
@@ -348,11 +368,13 @@ static NodeExpr* parse_func_call(Parser* parser) {
 		RET_IF_NULL(arg);
 	
 		if (func_data->args_len <= call->args_len) {
-			RET_ERROR("function call has too many arguments");
-		}
-
-		if (!type_can_coerce(arg->type, func_data->args[call->args_len])) {
-			RET_ERROR("argument has incompatible type");
+			if (!func_data->varardic) {
+				RET_ERROR("function call has too many arguments");
+			}
+		} else {
+			if (!type_can_coerce(arg->type, func_data->args[call->args_len])) {
+				RET_ERROR("argument has incompatible type");
+			}
 		}
 
 		if (cap < call->args_len + 1) {
@@ -367,7 +389,7 @@ static NodeExpr* parse_func_call(Parser* parser) {
 
 	if (func_data->args_len != call->args_len) RET_ERROR("function call has too few arguments");
 
-	return call;
+	return (NodeExpr*)call;
 }
 
 #define IS_OP_UNARY(type) ((type) == TOKEN_ADD || (type) == TOKEN_SUB || (type) == TOKEN_MUL || (type) == TOKEN_BIT_NOT || (type) == TOKEN_BOOL_NOT || (type) == TOKEN_BIT_AND || (type) == TOKEN_QUESTION)
@@ -730,6 +752,7 @@ static NodeConst* parse_const(Parser* parser) {
 	entry.name = ident;
 	entry.type = type_ref;
 	entry.value = NULL;
+	entry.decl = &out->node;
 	if (type_is_eq(entry.type, parser->types.type_type)) {
 		entry.value = eval_type(parser, val);
 	}
@@ -738,3 +761,68 @@ static NodeConst* parse_const(Parser* parser) {
 	return out;
 }
 
+static NodeFunc* parse_func(Parser* parser) {
+	Token func = consume(parser); // assume func keyword
+
+	char* ident =  parse_ident(parser);
+	RET_IF_NULL(ident);
+
+	Token lparen = consume(parser);
+	RET_IF_NOT(lparen, TOKEN_PAREN_LEFT, "expected '(' in func declaration");
+
+	NodeFunc* out = ALLOC_N(NodeFunc, sizeof(FuncArg) * 1);
+	out->node.type = NODE_FUNC;
+	out->node.token = func;
+	out->ident = ident;
+
+	out->is_varardic = false;
+	out->arg_varardic = NULL;
+
+	size_t cap = 1;
+	for (;;) {
+		// TODO: varardic...
+	
+		if (out->args_len >= cap) {
+			out = REALLOC_N(NodeFunc, out, sizeof(FuncArg) * (cap *= 2));
+			RET_IF_NULL(out);
+		}
+	
+		bool mut = false;
+		if (CHECK(TOKEN_MUT)) {
+			mut = true;
+			consume(parser);
+		}
+
+		char* name = parse_ident(parser);
+		RET_IF_NULL(name);
+
+		NodeExpr* type = parse_expr(parser);
+		RET_IF_NULL(type);
+
+		if (!type_is_eq(type->type, parser->types.type_type)) {
+			RET_ERROR("argument type must be a type");
+		}
+
+		out->args[out->args_len].name = name;
+		out->args[out->args_len].type = type;
+		out->args[out->args_len].is_mut = mut;
+		out->args_len++;
+		
+		if (CHECK(TOKEN_PAREN_RIGHT)) {
+			break;
+		}
+	}
+
+	out->ret_type = parse_expr(parser);
+	RET_IF_NULL(out->ret_type);
+
+	out->body = NULL;
+
+	if (CHECK(TOKEN_SEMICOLON))
+		return out;
+
+	out->body = parse_block(parser);
+	RET_IF_NULL(out->body);
+
+	return out;
+}
