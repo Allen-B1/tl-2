@@ -19,6 +19,7 @@ typedef enum {
 	NODE_LET,
 	NODE_CONST,
 	NODE_FUNC,
+	NODE_IF,
 
 	NODE_BLOCK,
 
@@ -89,13 +90,13 @@ typedef NodeLet NodeConst;
 
 typedef struct {
 	NodeExpr expr;
-	Node* lhs;
-	Node* rhs;
+	NodeExpr* lhs;
+	NodeExpr* rhs;
 } NodeOp;
 
 typedef struct {
 	NodeExpr expr;
-	Node* rhs;
+	NodeExpr* rhs;
 	uint64_t data; // for pointer/array types only
 } NodeOpUnary;
 
@@ -111,6 +112,17 @@ typedef struct {
 	size_t args_len;
 	NodeExpr* args[];
 } NodeFuncCall;
+
+typedef struct {
+	NodeExpr* condition;
+	NodeBlock* body;
+} NodeIfClause;
+
+typedef struct {
+	Node node;
+	size_t clauses_len;
+	NodeIfClause clauses[];
+} NodeIf;
 
 #define CHECK(typ) (parser->current.type == typ)
 #define AS_NODE(expr) ((Node*)(expr))
@@ -141,10 +153,8 @@ static inline Token consume(Parser* parser) {
 	return tmp;
 }
 
+static Node* parse_statement(Parser* parser);
 static NodeExpr* parse_expr(Parser* parser);
-static NodeLet* parse_let(Parser* parser);
-static NodeConst* parse_const(Parser* parser);
-static NodeBlock* parse_block(Parser* parser);
 static TypeRef eval_type(Parser* parser, NodeExpr* expr);
 
 #define RET_IF_NULL(expr) do { \
@@ -505,7 +515,7 @@ static NodeExpr* parse_unary(Parser* parser) {
 			out->lhs = lhs; \
 			out->rhs = rhs; \
 \
-			lhs = out;\
+			lhs = (NodeExpr*)out;\
 		}\
 	}
 
@@ -556,8 +566,8 @@ static NodeExpr* parse_assign(Parser* parser) {
 	out->expr.node.type = NODE_OP;
 	out->expr.node.token = eq;
 	out->expr.type = lhs->type;
-	out->lhs = AS_NODE(lhs);
-	out->rhs = AS_NODE(rhs);
+	out->lhs = lhs;
+	out->rhs = rhs;
 	return out;
 }
 
@@ -565,29 +575,9 @@ static NodeExpr* parse_expr(Parser* parser) {
 	return parse_assign(parser);
 }
 
-static Node* parse_statement(Parser* parser) {
-	if (CHECK(TOKEN_LET)) {
-		return AS_NODE(parse_let(parser));
-	} else if (CHECK(TOKEN_BRACE_LEFT)) {
-		return AS_NODE(parse_block(parser));
-	} else if (CHECK(TOKEN_TYPE) || CHECK(TOKEN_CONST)) {
-		return AS_NODE(parse_const(parser));
-	}/* else if (CHECK(TOKEN_CONST)) {
-		return AS_NODE(parse_const(parser));
-	} else if (CHECK(TOKEN_FUNC)) {
-		return AS_NODE(parse_func(parser));
-	} */ else {
-		Node* expr = AS_NODE(parse_expr(parser));
-		RET_IF_NULL(expr);
-
-		Token semi = consume(parser);
-		RET_IF_NOT(semi, TOKEN_SEMICOLON, "expected ';'");
-		return expr;
-	}
-}
-
-static NodeBlock* parse_block(Parser* parser) {
+static NodeBlock* parse_block_no_scope(Parser* parser) {
 	Token brace = consume(parser); // {
+	RET_IF_NOT(brace, TOKEN_BRACE_LEFT, "expected '{' to start block");
 
 	NodeBlock* block = ALLOC_N(NodeBlock, 2*sizeof(Node*));
 	RET_IF_OOM(block);
@@ -595,9 +585,6 @@ static NodeBlock* parse_block(Parser* parser) {
 	block->node.type = NODE_BLOCK;
 	block->node.token = brace;
 	block->len = 0;
-
-	parser->current_scope++;
-	symbols_init(&parser->scopes[parser->current_scope]);
 
 	size_t cap = 2;
 	while (!CHECK(TOKEN_BRACE_RIGHT)) {
@@ -612,10 +599,17 @@ static NodeBlock* parse_block(Parser* parser) {
 		block->nodes[block->len-1] = stmt;
 	}
 
+	consume(parser); // consume }
+}
+
+static NodeBlock* parse_block(Parser* parser) {
+	parser->current_scope++;
+	symbols_init(&parser->scopes[parser->current_scope]);
+
+	NodeBlock* block = parse_block_no_scope(parser);
+
 	symbols_free(&parser->scopes[parser->current_scope]);
 	parser->current_scope--;
-
-	consume(parser); // consume }
 
 	return block;
 }
@@ -778,6 +772,9 @@ static NodeFunc* parse_func(Parser* parser) {
 	out->is_varardic = false;
 	out->arg_varardic = NULL;
 
+	parser->current_scope++;
+	symbols_init(&parser->scopes[parser->current_scope]);
+
 	size_t cap = 1;
 	for (;;) {
 		// TODO: varardic...
@@ -807,6 +804,12 @@ static NodeFunc* parse_func(Parser* parser) {
 		out->args[out->args_len].type = type;
 		out->args[out->args_len].is_mut = mut;
 		out->args_len++;
+
+		TypeRef type_val = eval_type(parser, type);
+		if (type_val == NULL) {
+			RET_ERROR("couldn't parse type in function argument");
+		}
+		symbols_add(&parser->scopes[parser->current_scope], (SymbolEntry){.decl = (Node*)type, .name = name, .type = type_val, .value = NULL});
 		
 		if (CHECK(TOKEN_PAREN_RIGHT)) {
 			break;
@@ -821,8 +824,94 @@ static NodeFunc* parse_func(Parser* parser) {
 	if (CHECK(TOKEN_SEMICOLON))
 		return out;
 
-	out->body = parse_block(parser);
+	out->body = parse_block_no_scope(parser);
 	RET_IF_NULL(out->body);
 
+	symbols_free(&parser->scopes[parser->current_scope]);
+	parser->current_scope--;
+
 	return out;
+}
+
+static NodeIf* parse_if(Parser* parser) {
+	Token if_ = consume(parser);
+
+	NodeExpr* condition = parse_expr(parser);
+	RET_IF_NULL(condition);
+	if (!type_is_eq(condition->type, parser->types.type_bool)) {
+		RET_ERROR("expected bool in if condition");
+	}
+
+	NodeBlock* body = parse_block(parser);
+	RET_IF_NULL(body);
+
+	NodeIf* out = ALLOC_N(NodeIf, 1 * sizeof(NodeIfClause));
+	RET_IF_OOM(out);
+	out->node.token = if_;
+	out->node.type = NODE_IF;
+	out->clauses[0].condition = condition;
+	out->clauses[0].body = body;
+	out->clauses_len = 1;
+
+	size_t cap = 1;
+	bool has_else = false;
+	for (;;) {
+		if (!CHECK(TOKEN_ELSE)) break;
+
+		if (out->clauses_len >= cap) {
+			cap *= 2;
+			out = REALLOC_N(NodeIf, out, cap * sizeof(NodeIfClause));
+			RET_IF_OOM(out);
+		}
+
+
+		Token else_ = consume(parser);
+		NodeExpr* condition = NULL;
+
+		if (CHECK(TOKEN_IF)) {
+			if (has_else) {
+				RET_ERROR("can't have 'else if' after 'else'");
+			}
+
+			consume(parser);
+
+			condition = parse_expr(parser);
+			RET_IF_NULL(condition);
+			if (!type_is_eq(condition->type, parser->types.type_bool)) {
+				RET_ERROR("expected bool in else if condition");
+			}
+		} else {
+			has_else = true;
+		}
+
+		NodeBlock* body = parse_block(parser);
+		RET_IF_NULL(body);
+
+		out->clauses[out->clauses_len].condition = condition;
+		out->clauses[out->clauses_len].body = body;
+		out->clauses_len += 1;
+	}
+
+	return out;
+}
+
+static Node* parse_statement(Parser* parser) {
+	if (CHECK(TOKEN_LET)) {
+		return AS_NODE(parse_let(parser));
+	} else if (CHECK(TOKEN_BRACE_LEFT)) {
+		return AS_NODE(parse_block(parser));
+	} else if (CHECK(TOKEN_TYPE) || CHECK(TOKEN_CONST)) {
+		return AS_NODE(parse_const(parser));
+	} else if (CHECK(TOKEN_FUNC)) {
+		return AS_NODE(parse_func(parser));
+	} else if (CHECK(TOKEN_IF)) {
+		return AS_NODE(parse_if(parser));	
+	} else {
+		Node* expr = AS_NODE(parse_expr(parser));
+		RET_IF_NULL(expr);
+
+		Token semi = consume(parser);
+		RET_IF_NOT(semi, TOKEN_SEMICOLON, "expected ';'");
+		return expr;
+	}
 }
