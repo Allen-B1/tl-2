@@ -116,14 +116,12 @@ let b = Side::BOTTOM;
 ### Coercion
 Type F can coerce into type T iff:
  - F is equal to T
- - F and T are integer types; the size of F is smaller than the size of T; the signedness of F is the same as T
- - F and T are floating point types
- - F is an `enum` type or `bool` and T is an integer type that F fits inside of
- - F is `void` and T is an optional type
- - F is a pointer type with the element type of T or `void`; T is a pointer type with the same element type as F or `void`; F is mutable if T is mutable
- - F is a slice type and T is a pointer type with the same element type as F or `void`; F is mutable if T is mutable 
- - F is a pointer to a union type and T is a pointer whose element type is the type of one of the fields of F's element type
- - F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
+ - (num -> num) F and T are number types where all values of F exist inside of T
+ - (enum -> num) F is an `enum` type or `bool` and T is an integer type that F fits inside of
+ - (void -> ptr|slice) F is `void` and T is an optional type
+ - (ptr -> ptr) F & T are pointer types with the same child type or a `void` child type; mutability and optionality are compatible
+ - (slice -> ptr) F is a slice type and T is a pointer type with the same child type or `void` child type; mutability and optionality are compatible
+ - (struct ptr -> field ptr) F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
 
 ## "Methods"
 If a function's namespace is the same as a given type `T` and 
