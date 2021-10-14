@@ -6,8 +6,8 @@ design: C
  + better stdlib?  
 `.` operator: arrays, slices, `struct`, `union` only!
 
-# Types
-## Types of Types
+# Language
+## Types
 ### Primitive Types
  - `void` - contains one value, `null`
  - `bool` - `true` or `false`
@@ -18,8 +18,10 @@ design: C
 
 All numeric types have associated constants `T::min` and `T::max` describing the minimum and maximum value
 of that type.
+  
 
-### Arrays
+### Composite Types
+#### Arrays
  - `[N]T`- array of N `T`s
 
 An array is a contiguous location of memory. The pointer to 
@@ -33,7 +35,7 @@ of that array; in other words
 Arrays can be indexed with bracket syntax (`arr[idx]`). Arrays cannot be passed
 by value as a function parameter.
 
-### Pointers & Slices
+#### Pointers & Slices
  - `*T` - immutable pointer to `T`
  - `*mut T` - mutable pointer to `T`
  - `[]T` - immutable slice that points to `T`
@@ -49,10 +51,10 @@ Slices can automatically coerce into pointers
 Pointers and slices can be made optional by adding a `?` in front; `void` can
 convert to optional types.
 
-### Structs
+#### Structs
 Structs represent a contiguous memory location, laid out sequentially.
 Fields are laid out in memory in the order they are declared.
-The pointer to the struct is equal to the pointer to the first field.
+The pointer to a struct value is equal to the pointer to the its first field.
 
 ```rust
 type Color = struct {
@@ -68,22 +70,34 @@ let red u32 = sky.red;
 
 The `into` keyword can be used in the first field
 of a struct, which allows pointers to the struct to be automatically
-coerced into the pointer to the type of the `into` field, as described in the next section.
+coerced into the pointer to the type of the `into` field, as described in the Type Conversions section.
 
 ```rust
 type ColorA = struct {
 	into color Color; // keyword into
 	alpha u32;
-}
+};
 
 let green = ColorA { Color{0, 255, 0}, 128 };
 let clr *Color = &green; // == &green.color
 ```
 
-### Unions
+As a special case, the last member of a struct maybe an unknown-sized array, called a flexible array member (FAM). This, a struct that has a FAM can never be stack-allocated. The size of the array is 0 when factoring into `sizeof`.
+
+```rust
+type Buffer = struct {
+	cap usize;
+	len usize;
+	data [?]mut u8;
+};
+
+let buf Buffer; // error!
+let buf *Buffer = mem::alloc(sizeof(Buffer) + 5 * sizeof(u8));
+```
+
+#### Unions
 A union type can hold one field at a time. The pointer
-to a union value is equal to the pointer to any of its fields,
-and can be automatically coerced.
+to a union value is equal to the pointer to any of its fields.
 
 ```rust
 type A = union {
@@ -97,7 +111,7 @@ let float = A{.f=2.56};
 let str = A{.s="a string"};
 ```
 
-### Enums
+#### Enums
 Every member declared inside of an `enum` becomes a `const` declaration.
 
 ```rust
@@ -112,8 +126,8 @@ let a = Side::TOP;
 let b = Side::BOTTOM;
 ```
 
-## Type Conversions
-### Coercion
+### Type Conversions
+#### Coercion
 Type F can coerce into type T iff:
  - F is equal to T
  - (num -> num) F and T are number types where all values of F exist inside of T
@@ -121,9 +135,9 @@ Type F can coerce into type T iff:
  - (void -> ptr|slice) F is `void` and T is an optional type
  - (ptr -> ptr) F & T are pointer types with the same child type or a `void` child type; mutability and optionality are compatible
  - (slice -> ptr) F is a slice type and T is a pointer type with the same child type or `void` child type; mutability and optionality are compatible
- - (struct ptr -> field ptr) F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
+ - (struct ptr -> into ptr) F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
 
-## "Methods"
+### Methods
 If a function's namespace is the same as a given type `T` and 
 the first argument of the function is either:
 
@@ -132,34 +146,65 @@ the first argument of the function is either:
 
 then a value of type `T` `val` can call the function like so: `val.func_name(arg2, arg3...)`.
 
-## Built-in functions
-
-### `sizeof`
+## Builtins
+### Type Functions
+#### `sizeof`
 Returns the size of a given type.
 
 ```rust
-usize sizeof(T type);
+func sizeof(T type) usize;
 ```
 
-### `alignof`
+#### `alignof`
 Returns the alignment of a given type.
 
 ```rust
-usize alignof(T type);
+func alignof(T type) usize;
 ```
 
-### `typeof`
+#### `typeof`
 Compile-time macro function.
 
 ```rust
-type typeof(val);
+func typeof(val) type;
 ```
 
-# Declarations
-## Namespaces
+### Varardic Functions
+#### `varargs::next`
+```rust
+func varargs::next(varargs args, T type) T;
+```
+
+#### `varargs::copy`
+```rust
+func varargs::copy(varargs args) varargs;
+```
+
+#### `varargs::free`
+```rust
+func varargs::free(varargs args);
+```
+
+This should be called once for every varardic parameter passed, as well as every call to `varargs::copy`.
+
+### Type Constants
+For every signed integer type `t`, there exist two constants:
+ - `t::MAX`
+ - `t::MIN`
+ 
+For every unsigned integer type `t`, there exists one constant:
+ - `t::MAX`
+
+For every floating point type `t` there exists the following:
+ - `t::MIN` - minimum representable positive value
+ - `t::MAX` - maximum representable value
+ - `t::EPSILON` - minimum representable value greater than 1, minus 1
+
+## Declarations
+### Namespaces
 Symbol names can contain `::`.
 
-## `const`
+### `const`
 Constants are compile-time constants. 
 
 ```rust
@@ -174,7 +219,7 @@ const ID type = u32;
 type ID = u32;
 ```
 
-## `let`
+### `let`
 Let declares a runtime constant or variable.
 
 ```rust
@@ -183,7 +228,7 @@ let mut next = id + 1;
 next += 1;
 ```
 
-## `func`
+### `func`
 Basically the same as C.
 
 ```rust
@@ -218,8 +263,8 @@ func lol(arg i32, args...) {
 }
 ```
 
-# Control Flow
-## `if`
+## Control Flow
+### `if`
 Basically the same as C.
 
 ```rust
@@ -232,7 +277,7 @@ if condition {
 }
 ```
 
-## `switch`
+### `switch`
 Basically the same as C.
 
 ```rust
@@ -247,9 +292,11 @@ switch val {
 }
 ```
 
-## `for`
-Same as Go.
+### `for`
+Same as Go. Includes labeled `break` and `continue` statements.
 
+### `goto`
+Same as C.
 
 # Preprocessor
 ## `include`
@@ -257,24 +304,38 @@ Basically C's `#include`. If there are no quotes, the file is looked for in the
 given include paths (`-I`). If there are quotes, the string is interpreted
 as a relative path to the current file.
 
-```rust
-#include mem
+```c
+#include <mem>
 #include "./file.tl"
 ```
 
 ## `define`, `undef`
-Declares a macro. Macros, like any symbol, can have a namespace.
+Declares a macro. A macro is a set of tokens that expand to another set of tokens.
 
-```rust
-// Expression macros
-#define ADD_ONE(a i32) a + 1
-#define STMT(a u32) {
-	let b = ADD_ONE(a);
-	io::printf("%d\n", b);
-}
+### Constant Macros
+```c
+#define RANDOM rand::next()
+#define if for
+```
 
-// Untyped
-#define SIZEOF(T) T::size
+### Function Macros
+```c
+#define COOLMACRO($kw) $kw A { *(?*void)null = null; }
+// `kw` directly substituted in
+
+#define FASTMOD($(a), $(b) ($a & ($b - 1))
+// `$a` and `$b` substituted in with parenthesis.
+
+#define SQRT($(a u32)) ($a << 1)
+
+#define R32($(a) / $(b)) r32::new($a, $b)
+// RAT(3 / 5) expands to r32::new((3), (5))
+
+#define SET{$(T type); $(a u32 ,)} set::new(sizeof($T), $a::len, []$T{$a})
+// SET{u32; 1, 2, 6, 3} expands to set::new(sizeof((u32)), 4, []u32{1, 2, 6, 3})
+
+#undef COOLMACRO
+// COOLMACRO not able to be used anymore
 ```
 
 ## `ifdef`, `ifndef`, `if`, `else`, `end`
