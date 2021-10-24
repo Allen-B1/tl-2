@@ -155,8 +155,8 @@ Token tok_next(Tokenizer* tokenizer) {
 	case '}': return MAKE_TOKEN(TOKEN_BRACE_RIGHT);
 	case '[': return MAKE_TOKEN(TOKEN_BRACKET_LEFT);
 	case ']': return MAKE_TOKEN(TOKEN_BRACKET_RIGHT);
-	case '(': return MAKE_TOKEN(TOKEN_BRACKET_LEFT);
-	case ')': return MAKE_TOKEN(TOKEN_BRACKET_RIGHT);
+	case '(': return MAKE_TOKEN(TOKEN_PAREN_LEFT);
+	case ')': return MAKE_TOKEN(TOKEN_PAREN_RIGHT);
 
 	case ',': return MAKE_TOKEN(TOKEN_COMMA);
 	case ';': return MAKE_TOKEN(TOKEN_SEMICOLON);

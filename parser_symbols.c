@@ -73,6 +73,11 @@ bool symbols_add_global(SymbolTable* table, TypeTable* types) {
 // the returned entry should not be kept in any data structures.
 // invalidated after symbols_grow
 SymbolEntry* symbols_get(SymbolTable* table, const char* name) {
+	// & (cap-1) doesn't work if cap == 0
+	if (table->cap == 0) {
+		return NULL;
+	}
+
 	size_t hash = table_hash(name);
 	size_t start_idx = hash & (table->cap-1);
 	size_t idx = start_idx;

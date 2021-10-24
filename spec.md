@@ -38,13 +38,16 @@ by value as a function parameter.
 #### Pointers & Slices
  - `*T` - immutable pointer to `T`
  - `*mut T` - mutable pointer to `T`
- - `[]T` - immutable slice that points to `T`
- - `[]mut T` - mutable slice that points to `T`
+ - `[*]T` - immutable slice that points to `T`
+ - `[*]mut T` - mutable slice that points to `T`
+
+Additionally, the `restrict` keyword can be used right before `T` that behaves in the same way
+that C's `restrict` does.
 
 Slices are built with
 `x[start..end]` syntax, which indexes array, pointer, or slice `x` from \[`start`, `end`).
 Slices can automatically coerce into pointers
-(`[]T` => `*T`, `[]mut T` => `*mut T`, `*T`). 
+(`[*]T` => `*T`, `[*]mut T` => `*mut T`, `*T`).
 
 `slice.len` returns the length of a slice.
 
@@ -88,7 +91,7 @@ As a special case, the last member of a struct maybe an unknown-sized array, cal
 type Buffer = struct {
 	cap usize;
 	len usize;
-	data [?]mut u8;
+	data []u8;
 };
 
 let buf Buffer; // error!
@@ -103,7 +106,7 @@ to a union value is equal to the pointer to any of its fields.
 type A = union {
 	i i32;
 	f f32;
-	s []u8;
+	s [*]u8;
 };
 
 let int = A{.i=3};
@@ -208,10 +211,8 @@ Symbol names can contain `::`.
 Constants are compile-time constants. 
 
 ```rust
-const string = "i am a string";
-// type = generic float
-const pi = 3.1415926535;
-// type = f32
+const string [*]u8 = "i am a string";
+const pi f64 = 3.1415926535;
 const e f32 = 2.71;
 
 // next two statements are identical
@@ -220,13 +221,26 @@ type ID = u32;
 ```
 
 ### `let`
-Let declares a runtime constant or variable.
+Let declares an automatic storage duration variable. `let` statements cannot occur in the global scope.
 
 ```rust
 let id ID = 3;
-let mut next = id + 1;
+
+// for type inference, use the auto keyword
+let mut next auto = id + 1;
 next += 1;
 ```
+
+### `static`
+A `static` statement has the same syntax as a `let` declaration, but has the static storage duration.
+
+```rust
+static mut buf [64]u8;
+return buf[..5];
+```
+
+### `extern`
+An `extern` declaration declares a variable but does not define it.
 
 ### `func`
 Basically the same as C.
@@ -238,14 +252,14 @@ func add_one(n u32) u32 {
 
 // if no return type is specified,
 // `void` is implied.
-func say_hi(name []u8) {
+func say_hi(name [*]u8) {
 	io::print("hello, ");
 	io::print(name);
 	// return null;
 }
 
 // inline functions are inlined at compile-time.
-inline func dne() {
+func inline dne() {
 	abort();
 	return null;
 }
@@ -255,7 +269,7 @@ func lol(arg i32, args...) {
 	// args initialized with va_start
 
 	let age = args.next(i8);
-	let name = args.next([]u8);
+	let name = args.next([*]u8);
 
 	let args_copy = args.copy();
 
@@ -320,13 +334,13 @@ Declares a macro. A macro is a set of tokens that expand to another set of token
 
 ### Function Macros
 ```c
-#define COOLMACRO($kw) $kw A { *(?*void)null = null; }
+#define COOLMACRO($kw) $kw A { *(*mut u32)0xc001 = 0xdab; }
 // `kw` directly substituted in
 
 #define FASTMOD($(a), $(b) ($a & ($b - 1))
 // `$a` and `$b` substituted in with parenthesis.
 
-#define SQRT($(a u32)) ($a << 1)
+#define FASTSQRT($(a u32)) ($a << 2)
 
 #define R32($(a) / $(b)) r32::new($a, $b)
 // RAT(3 / 5) expands to r32::new((3), (5))
@@ -335,7 +349,7 @@ Declares a macro. A macro is a set of tokens that expand to another set of token
 // SET{u32; 1, 2, 6, 3} expands to set::new(sizeof((u32)), 4, []u32{1, 2, 6, 3})
 
 #undef COOLMACRO
-// COOLMACRO not able to be used anymore
+// oh no :((
 ```
 
 ## `ifdef`, `ifndef`, `if`, `else`, `end`

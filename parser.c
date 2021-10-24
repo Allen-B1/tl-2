@@ -133,12 +133,23 @@ typedef struct {
 
 #define UNREACHABLE() do { fprintf(stderr, "unreachable code on line %d\n", __LINE__); exit(2); } while(0) 
 
+#ifdef TL_DEBUG
+#define DBG_ENTER_TOP(fn) fprintf(stderr, "\nentering: %s\n", #fn)
+#define DBG_ENTER(fn) fprintf(stderr, "entering: %s\n", #fn)
+#define DBG(fmt, ...) fprintf(stderr, "debug: " fmt "\n" __VA_OPT__(,) __VA_ARGS__)
+#else
+#define DBG_ENTER(_)
+#define DBG(...)
+#endif
+
 void parser_init(Parser* parser, Tokenizer tok) {
 	memset(parser, 0, sizeof(Parser));
 	parser->tok = tok;
 	table_init(&parser->types);
 	symbols_init(&parser->scopes[0]);
 	symbols_add_global(&parser->scopes[0], &parser->types);
+
+	parser->current = tok_next(&parser->tok);
 }
 
 // returns current. moves current to next token.
@@ -165,7 +176,7 @@ static TypeRef eval_type(Parser* parser, NodeExpr* expr);
 	} while(0)
 
 #define RET_ERROR(err) do { \
-	parser->error = "out of memory"; \
+	parser->error = err; \
 	return NULL; \
 	} while(0)
 
@@ -282,6 +293,8 @@ static TypeRef eval_type(Parser* parser, NodeExpr* expr) {
 }
 
 static NodeExpr* parse_literal(Parser* parser) {
+	DBG_ENTER(parse_literal);
+
 	Token tok = consume(parser);
 	if (tok.type != TOKEN_LIT_INT && tok.type != TOKEN_LIT_FLOAT && tok.type != TOKEN_LIT_STR) {
 		RET_ERROR("expected int, float, or string literal");
@@ -300,6 +313,8 @@ static NodeExpr* parse_literal(Parser* parser) {
 }
 
 static NodeIdent* parse_ident_expr(Parser* parser) {
+	DBG_ENTER(parse_ident_expr);
+
 	char* ident = parse_ident(parser);
 	RET_IF_NULL(ident);
 
@@ -309,12 +324,13 @@ static NodeIdent* parse_ident_expr(Parser* parser) {
 	out->expr.node.type = NODE_IDENT;
 	// no associated token
 
-	for (size_t scope = parser->current_scope; scope >= 0; scope--) {
+	for (size_t scope = parser->current_scope; scope > 0; scope--) {
 		SymbolTable* table = &parser->scopes[scope];
 		SymbolEntry* entry = symbols_get(table, ident);
 		if (entry == NULL) {
 			continue;
 		}
+		DBG("symbol '%s' scope: %d", entry->name, scope);
 		out->expr.type = entry->type;
 		out->scope = scope;
 		out->name = ident;
@@ -325,8 +341,10 @@ static NodeIdent* parse_ident_expr(Parser* parser) {
 }
 
 static NodeExpr* parse_grouping(Parser* parser) {
+	DBG_ENTER(parse_grouping);
+
 	if (parser->current.type != TOKEN_PAREN_LEFT) {
-		if (CHECK(NODE_IDENT)) return parse_ident_expr(parser);
+		if (CHECK(TOKEN_IDENT)) return parse_ident_expr(parser);
 		else return parse_literal(parser);
 	}
 	Token lhs = consume(parser);
@@ -341,6 +359,8 @@ static NodeExpr* parse_grouping(Parser* parser) {
 }
 
 static NodeExpr* parse_func_call(Parser* parser) {
+	DBG_ENTER(parse_func_call);
+
 	NodeExpr* func = parse_grouping(parser);
 	RET_IF_NULL(func);
 	if (!CHECK(TOKEN_PAREN_LEFT)) {
@@ -404,6 +424,8 @@ static NodeExpr* parse_func_call(Parser* parser) {
 
 #define IS_OP_UNARY(type) ((type) == TOKEN_ADD || (type) == TOKEN_SUB || (type) == TOKEN_MUL || (type) == TOKEN_BIT_NOT || (type) == TOKEN_BOOL_NOT || (type) == TOKEN_BIT_AND || (type) == TOKEN_QUESTION)
 static NodeExpr* parse_unary(Parser* parser) {
+	DBG_ENTER(parse_unary);
+
 	if (!IS_OP_UNARY(parser->current.type) && !CHECK(TOKEN_BRACKET_LEFT)) return parse_func_call(parser);
 	Token op = consume(parser);
 	uint64_t data = 0;
@@ -547,6 +569,8 @@ DEFINE_OP_LEFT(op1, parse_op2, IS_OP_1, rt_bool, "cannot coerce rhs or lhs to bo
 #define IS_OP_EQ(type) ((type) == TOKEN_EQ || (type) == TOKEN_EQ_ADD || (type) == TOKEN_EQ_SUB || (type) == TOKEN_EQ_MUL || (type) == TOKEN_EQ_DIV || (type) == TOKEN_EQ_MOD || \
 	(type) == TOKEN_EQ_BIT_AND || (type) == TOKEN_EQ_BIT_OR || (type) == TOKEN_EQ_BIT_XOR || (type) == TOKEN_EQ_SHIFT_LEFT || (type) == TOKEN_EQ_SHIFT_RIGHT)
 static NodeExpr* parse_assign(Parser* parser) {
+	DBG_ENTER(parse_assign);
+
 	// TODO: update to ensure lhs
 	NodeExpr* lhs = parse_unary(parser);
 	RET_IF_NULL(lhs);
@@ -596,6 +620,7 @@ static NodeBlock* parse_block_no_scope(Parser* parser) {
 		}
 
 		Node* stmt = parse_statement(parser);
+		RET_IF_NULL(stmt);
 		block->nodes[block->len-1] = stmt;
 	}
 
@@ -603,6 +628,8 @@ static NodeBlock* parse_block_no_scope(Parser* parser) {
 }
 
 static NodeBlock* parse_block(Parser* parser) {
+	DBG_ENTER(parse_block);
+
 	parser->current_scope++;
 	symbols_init(&parser->scopes[parser->current_scope]);
 
@@ -636,6 +663,8 @@ static bool register_let(Parser* parser, NodeLet* node) {
 }
 
 static NodeLet* parse_let(Parser* parser) {
+	DBG_ENTER(parse_let);
+
 	Token let = consume(parser); // discord let token	
 
 	bool is_mut = false;
@@ -702,6 +731,8 @@ static NodeLet* parse_let(Parser* parser) {
 }
 
 static NodeConst* parse_const(Parser* parser) {
+	DBG_ENTER(parse_const);
+
 	Token cnst = consume(parser); // assume const or type keyword
 
 	char* ident = parse_ident(parser);
@@ -756,10 +787,14 @@ static NodeConst* parse_const(Parser* parser) {
 }
 
 static NodeFunc* parse_func(Parser* parser) {
+	DBG_ENTER(parse_func);
+
 	Token func = consume(parser); // assume func keyword
 
 	char* ident =  parse_ident(parser);
 	RET_IF_NULL(ident);
+
+	DBG("func ident: %s\n", ident);
 
 	Token lparen = consume(parser);
 	RET_IF_NOT(lparen, TOKEN_PAREN_LEFT, "expected '(' in func declaration");
@@ -775,49 +810,68 @@ static NodeFunc* parse_func(Parser* parser) {
 	parser->current_scope++;
 	symbols_init(&parser->scopes[parser->current_scope]);
 
-	size_t cap = 1;
-	for (;;) {
-		// TODO: varardic...
-	
-		if (out->args_len >= cap) {
-			out = REALLOC_N(NodeFunc, out, sizeof(FuncArg) * (cap *= 2));
-			RET_IF_NULL(out);
-		}
-	
-		bool mut = false;
-		if (CHECK(TOKEN_MUT)) {
-			mut = true;
+	if (!CHECK(TOKEN_PAREN_RIGHT)) {
+		size_t cap = 1;
+		for (;;) {
+			// TODO: varardic...
+		
+			if (out->args_len >= cap) {
+				out = REALLOC_N(NodeFunc, out, sizeof(FuncArg) * (cap *= 2));
+				RET_IF_NULL(out);
+			}
+		
+			bool mut = false;
+			if (CHECK(TOKEN_MUT)) {
+				mut = true;
+				consume(parser);
+			}
+
+			char* name = parse_ident(parser);
+			RET_IF_NULL(name);
+
+			NodeExpr* type = parse_expr(parser);
+			RET_IF_NULL(type);
+
+			if (!type_is_eq(type->type, parser->types.type_type)) {
+				RET_ERROR("argument type must be a type");
+			}
+
+			out->args[out->args_len].name = name;
+			out->args[out->args_len].type = type;
+			out->args[out->args_len].is_mut = mut;
+			out->args_len++;
+
+			TypeRef type_val = eval_type(parser, type);
+			if (type_val == NULL) {
+				RET_ERROR("couldn't parse type in function argument");
+			}
+			symbols_add(&parser->scopes[parser->current_scope], (SymbolEntry){.decl = (Node*)type, .name = name, .type = type_val, .value = NULL});
+			
+			if (CHECK(TOKEN_PAREN_RIGHT)) {
+				consume(parser);
+				break;
+			}
+
+			// consume comma
+			if (!CHECK(TOKEN_COMMA)) {
+				RET_ERROR("expected ',' or '(' after argument");
+			}
 			consume(parser);
 		}
-
-		char* name = parse_ident(parser);
-		RET_IF_NULL(name);
-
-		NodeExpr* type = parse_expr(parser);
-		RET_IF_NULL(type);
-
-		if (!type_is_eq(type->type, parser->types.type_type)) {
-			RET_ERROR("argument type must be a type");
-		}
-
-		out->args[out->args_len].name = name;
-		out->args[out->args_len].type = type;
-		out->args[out->args_len].is_mut = mut;
-		out->args_len++;
-
-		TypeRef type_val = eval_type(parser, type);
-		if (type_val == NULL) {
-			RET_ERROR("couldn't parse type in function argument");
-		}
-		symbols_add(&parser->scopes[parser->current_scope], (SymbolEntry){.decl = (Node*)type, .name = name, .type = type_val, .value = NULL});
-		
-		if (CHECK(TOKEN_PAREN_RIGHT)) {
-			break;
-		}
+	} else {
+		// consume {
+		consume(parser);
+		out->args_len = 0;
 	}
 
-	out->ret_type = parse_expr(parser);
-	RET_IF_NULL(out->ret_type);
+	if (!CHECK(TOKEN_BRACE_LEFT)) {
+		DBG("%d", parser->current.type);
+		out->ret_type = parse_expr(parser);
+		RET_IF_NULL(out->ret_type);		
+	} else {
+		// default ret_type to void
+		out->ret_type = NULL;
+	}
 
 	out->body = NULL;
 
@@ -834,6 +888,8 @@ static NodeFunc* parse_func(Parser* parser) {
 }
 
 static NodeIf* parse_if(Parser* parser) {
+	DBG_ENTER(parse_if);
+
 	Token if_ = consume(parser);
 
 	NodeExpr* condition = parse_expr(parser);
@@ -895,7 +951,20 @@ static NodeIf* parse_if(Parser* parser) {
 	return out;
 }
 
+static Node* parse_decl(Parser* parser) {
+	DBG_ENTER_TOP(parse_decl);
+	if (CHECK(TOKEN_CONST)) {
+		return (Node*)parse_const(parser);
+	} else if (CHECK(TOKEN_FUNC)) {
+		return (Node*)parse_func(parser);
+	} else {
+		RET_ERROR("expected declaration");
+	}
+}
+
 static Node* parse_statement(Parser* parser) {
+	DBG_ENTER_TOP(parse_statement);
+
 	if (CHECK(TOKEN_LET)) {
 		return AS_NODE(parse_let(parser));
 	} else if (CHECK(TOKEN_BRACE_LEFT)) {
@@ -914,4 +983,30 @@ static Node* parse_statement(Parser* parser) {
 		RET_IF_NOT(semi, TOKEN_SEMICOLON, "expected ';'");
 		return expr;
 	}
+}
+
+typedef struct {
+	size_t len;
+	Node* nodes[];
+} Program;
+
+static Program* parse_program(Parser* parser) {
+	size_t cap = 4;
+	size_t len = 0;
+	Program* program = malloc(sizeof(Program) + sizeof(Node*) * cap);
+	while(true) {
+		if (len >= cap) {
+			cap *= 2;
+			program = realloc(program, sizeof(Program) + sizeof(Node*) * cap);
+		}
+
+		if (CHECK(TOKEN_EOF)) break;
+
+		Node* node = parse_decl(parser);
+		RET_IF_NULL(node);
+
+		program->nodes[len] = node;
+		len += 1;
+	}
+	return program;
 }
