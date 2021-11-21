@@ -1,20 +1,14 @@
-#include "tokenizer.h"
+#include "../tokenizer/tokenizer.h"
+#include "../utils.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-
-inline static size_t table_hash(char* str) {
-    size_t hash = 5381;
-    int c;
-
-    while ((c = *(str++)))
-        hash = ((hash << 5) + hash) + (size_t)c; /* hash * 33 + c */
-
-    return hash;
-}
+#include <arrlist.h>
+#include <rhmap.h>
 
 #include "parser_type.c"
 
+/*
 typedef enum {
 	NODE_LET,
 	NODE_CONST,
@@ -30,22 +24,6 @@ typedef enum {
 	NODE_FUNC_CALL,
 } NodeType;
 
-typedef struct Node {
-	NodeType type;
-	Token token;
-} Node;
-
-#include "parser_symbols.c"
-
-typedef struct {
-	Tokenizer tok;
-	Token current;
-	const char* error;
-	TypeTable types;
-	// maximum 256 depth
-	SymbolTable scopes[256];
-	size_t current_scope;
-} Parser;
 
 typedef struct {
 	Node node;
@@ -62,7 +40,31 @@ typedef struct {
 
 typedef struct {
 	bool is_mut;
-	char* name;
+	char* name;#ifndef _NODE_H
+
+#include "../utils.h"
+
+typedef size_t TokenRef;
+
+typedef size_t NodeRef;
+
+typedef struct {
+
+} NodeRefSlice;
+
+typedef struct {
+	const char* name;
+	TypeRef (*type)(Node*);
+	NodeRef* (*children)(Node*);
+	TokenRef (*token)(Node*);
+} NodeVTable;
+
+typedef struct Node {
+	NodeVTable* vtable;
+} Node;
+
+
+#endif
 	NodeExpr* type;
 } FuncArg;
 
@@ -123,6 +125,13 @@ typedef struct {
 	size_t clauses_len;
 	NodeIfClause clauses[];
 } NodeIf;
+*/
+
+#include "node.h"
+#include "parser_symbols.c"
+
+
+
 
 #define CHECK(typ) (parser->current.type == typ)
 #define AS_NODE(expr) ((Node*)(expr))

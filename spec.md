@@ -11,8 +11,8 @@ design: C
 ### Primitive Types
  - `void` - contains one value, `null`
  - `bool` - `true` or `false`
- - `i8, i16, i32, i64, u8, u16, u32, u64, usize` - signed/unsigned integers
- - `f16, f32, f64, f80, f128` - floating point. `f80` and `f128` fall back to `f80` or `f64` if they're not available.
+ - `i8, i16, i32, i64, isize, u8, u16, u32, u64, usize` - signed/unsigned integers
+ - `f16, f32, f64, f64x` - floating point. `f64x` falls back to `f64` if it's not available.
  - `varargs` - C's `va_list`
  - `type` - represents a type. only available during compile time.
 
@@ -139,6 +139,9 @@ Type F can coerce into type T iff:
  - (ptr -> ptr) F & T are pointer types with the same child type or a `void` child type; mutability and optionality are compatible
  - (slice -> ptr) F is a slice type and T is a pointer type with the same child type or `void` child type; mutability and optionality are compatible
  - (struct ptr -> into ptr) F is a pointer to a struct type and T is a pointer to the type of the `into` field of F
+ - (func -> func) F is function type and T is a function type; all arguments of F are the same as T or 
+ 	the argument for T can autocoerce into the argument for F
+
 
 ### Methods
 If a function's namespace is the same as a given type `T` and 
