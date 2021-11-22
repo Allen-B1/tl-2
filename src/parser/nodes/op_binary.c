@@ -1,5 +1,5 @@
 #include "op_binary.h"
-#include "literal.h"
+#include "op_unary.h"
 
 TypeRef node_op_binary_type(const Parser* parser, NodeOpBinary* op) {
     return op->type;
@@ -83,7 +83,7 @@ inline static  TypeRef rt_bool(Parser* parser, TypeRef lhs, TypeRef rhs) {
 	return TYPEREF_BOOL;
 }
 
-DEFINE_OP_LEFT(op_mul, /*TODO node_grouping_parse*/ node_literal_parse, IS_OP_MUL, rt_op, "incompatible lhs and rhs types")
+DEFINE_OP_LEFT(op_mul, /*TODO node_grouping_parse*/ node_op_unary_parse, IS_OP_MUL, rt_op, "incompatible lhs and rhs types")
 DEFINE_OP_LEFT(op_add, parse_op_mul, IS_OP_ADD, rt_op, "incompatible lhs and rhs types")
 DEFINE_OP_LEFT(op_cmp, parse_op_add, IS_OP_CMP, rt_cmp, "incompatible lhs and rhs types")
 DEFINE_OP_LEFT(op_and, parse_op_cmp, IS_OP_AND, rt_bool, "lhs and rhs must be bool")
