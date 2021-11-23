@@ -1,7 +1,7 @@
 #include "ident.h"
 TypeRef node_ident_type(const Parser* parser, NodeIdent* ident) {
     // TODO: symbol table
-    return TYPEREF_I32;
+    return TYPEREF_TYPE;
 }
 
 TokenRef node_ident_token(const Parser* parser, NodeIdent* ident) {

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include "op_unary.h"
+#include "grouping.h"
 #include "literal.h"
 
 #define CHECK(type_) (parser_getpeek(parser)->type == (type_))
@@ -32,7 +33,7 @@ NodeVTable NODE_IMPL_OP_UNARY = {
 
 #define IS_OP_UNARY(type) ((type) == TOKEN_ADD || (type) == TOKEN_SUB || (type) == TOKEN_MUL || (type) == TOKEN_BIT_NOT || (type) == TOKEN_BOOL_NOT || (type) == TOKEN_BIT_AND || (type) == TOKEN_QUESTION)
 NodeRef node_op_unary_parse(Parser* parser) {
-	if (!IS_OP_UNARY(parser_getpeek(parser)->type) && !CHECK(TOKEN_BRACKET_LEFT)) return node_literal_parse(parser); //node_func_call_parse(parser);
+	if (!IS_OP_UNARY(parser_getpeek(parser)->type) && !CHECK(TOKEN_BRACKET_LEFT)) return node_grouping_parse(parser); //node_func_call_parse(parser);
 
 	TokenRef op_ref = parser_consume(parser);
     Token* op = parser_gettok(parser, op_ref);
@@ -58,6 +59,7 @@ NodeRef node_op_unary_parse(Parser* parser) {
 	}
 
     NodeRef child = node_op_unary_parse(parser);
+    RET_IF_ERR(parser, child);
 
     NodeOpUnary* node = malloc(sizeof(NodeOpUnary));
     RET_IF_OOM(parser, node);
@@ -76,7 +78,7 @@ NodeRef node_op_unary_parse(Parser* parser) {
 	case TYPE_UINT:
 	case TYPE_FLOAT:
 		if (op->type != TOKEN_ADD && op->type != TOKEN_SUB && op->type != TOKEN_BIT_NOT && op->type != TOKEN_BIT_AND) {
-			RET_ERROR(parser, "invalid type (not bool) for unary operator !");
+			RET_ERROR(parser, "invalid number type for unary operator");
 		}
 		break;
 	case TYPE_BOOL:
@@ -113,14 +115,16 @@ NodeRef node_op_unary_parse(Parser* parser) {
 	}
 
     if (op->type == TOKEN_MUL) {
-        if (child_type->tag != TYPE_PTR) {
+		if (child_type->tag == TYPE_TYPE) {
+			node->type = TYPEREF_TYPE;
+		} else if (child_type->tag != TYPE_PTR) {
             // unreachable!()
             fprintf(stderr, "unreachable code reached: dereference of non-pointer value");
             abort();
-        }
-
-        // dereference
-        node->type = child_type->child;
+        } else {
+			// dereference
+			node->type = child_type->child;
+		}
     } else if (op->type == TOKEN_BIT_AND) {
         Type type = {
             .child = child_typeref,

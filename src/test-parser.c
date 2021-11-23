@@ -4,7 +4,7 @@
 void print_type(FILE* out, const Parser* parser, TypeRef typeref) {
     TypeEntry* entry = typetable_get(&parser->types, typeref);
     Type type = entry->type;
-    fprintf(out, "%s (", entry->name);
+    fprintf(out, "%s (", entry->name[0] == '\0' ? "'anon" : entry->name);
 
     switch (type.tag) {
     case TYPE_VOID: fprintf(out, "void"); break;
@@ -12,6 +12,10 @@ void print_type(FILE* out, const Parser* parser, TypeRef typeref) {
     case TYPE_UINT: fprintf(out, "i%d", (int)type.data); break;
     case TYPE_FLOAT: fprintf(out, "f%d", (int)type.data); break;
     case TYPE_BOOL: fprintf(out, "bool"); break;
+    case TYPE_PTR:
+        fprintf(out, "%s*%s", (type.data & TYPE_OPT) != 0 ? "?" : "", (type.data & TYPE_MUT) ? "mut ": ""); 
+        print_type(out, parser, type.child);
+        break;
     default: fprintf(out, "unknown"); break;
     }
 
@@ -92,17 +96,19 @@ void graph_create(FILE* out, const Parser* parser, NodeRef root) {
 
 int main() {
     Parser parser;
-    parser_init(&parser, "1 - 2 ^ 3 & 4 | 5 & 6 | 7 + 9 * 2 == 5");
+    parser_init(&parser, "*u32");
     NodeRef ref = node_op_binary_parse(&parser);
     printf("%d\n", (int)ref);
 
-    if (parser.error != NULL)
+    if (parser.error != NULL) {
         printf("error: %s\n", parser.error);
+    } else {
+        print_item(&parser, ref, 0);
 
-//    print_item(&parser, ref, 0);
-
-    FILE* out = fopen("out.txt", "w");
-    graph_create(out, &parser, ref);
+        FILE* out = fopen("out.txt", "w");
+        graph_create(out, &parser, ref);
+        fclose(out);
+    }
 
     return 0;
 }

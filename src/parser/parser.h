@@ -82,12 +82,12 @@ static inline Token* parser_getpeek(Parser* parser) {
 }
 
 #define RET_IF_OOM(parser, expr) do { \
-		if ((expr) == NULL) { parser->error = "out of memory"; return 0; } \
+		if ((expr) == NULL) { parser->error = "out of memory"; return NODE_ERR; } \
 	} while(0)
 
 #define RET_ERROR(parser, err) do { \
 		parser->error = err; \
-		return 0; \
+		return NODE_ERR; \
 	} while(0)
 
 #define RET_IF_ERR(parser, node) do { \
