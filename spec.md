@@ -35,6 +35,12 @@ of that array; in other words
 Arrays can be indexed with bracket syntax (`arr[idx]`). Arrays cannot be passed
 by value as a function parameter.
 
+#### Vectors
+ - `vec[N]T` - vector of N `T`s
+
+SIMD vector type. N must be a power of 2.
+Arithmetic operations can be performed on vectors.
+
 #### Pointers & Slices
  - `*T` - immutable pointer to `T`
  - `*mut T` - mutable pointer to `T`
