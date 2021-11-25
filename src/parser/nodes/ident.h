@@ -16,6 +16,7 @@ TokenRef node_ident_token(const Parser* parser, NodeIdent* ident);
 
 extern NodeVTable NODE_IMPL_IDENT;
 
+char* ident_parse(Parser* parser, TokenRef* start, TokenRef* end);
 NodeRef node_ident_parse(Parser* parser);
 
 #endif

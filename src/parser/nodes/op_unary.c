@@ -1,6 +1,6 @@
 #include <stdlib.h>
 #include "op_unary.h"
-#include "grouping.h"
+#include "func_call.h"
 #include "literal.h"
 
 #define CHECK(type_) (parser_getpeek(parser)->type == (type_))
@@ -33,7 +33,7 @@ NodeVTable NODE_IMPL_OP_UNARY = {
 
 #define IS_OP_UNARY(type) ((type) == TOKEN_ADD || (type) == TOKEN_SUB || (type) == TOKEN_MUL || (type) == TOKEN_BIT_NOT || (type) == TOKEN_BOOL_NOT || (type) == TOKEN_BIT_AND || (type) == TOKEN_QUESTION)
 NodeRef node_op_unary_parse(Parser* parser) {
-	if (!IS_OP_UNARY(parser_getpeek(parser)->type) && !CHECK(TOKEN_BRACKET_LEFT)) return node_grouping_parse(parser); //node_func_call_parse(parser);
+	if (!IS_OP_UNARY(parser_getpeek(parser)->type) && !CHECK(TOKEN_BRACKET_LEFT)) return node_func_call_parse(parser); //node_func_call_parse(parser);
 
 	TokenRef op_ref = parser_consume(parser);
     Token* op = parser_gettok(parser, op_ref);

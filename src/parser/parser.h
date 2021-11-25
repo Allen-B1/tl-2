@@ -34,6 +34,7 @@ static void parser_init(Parser* parser, const char* src) {
 	arrlist_init(&parser->nodes, 32);
 	typetable_init(&parser->types);
 	symbols_init(&parser->scopes[0]);
+	symbols_add_builtin(&parser->scopes[0], &parser->types);
 	parser->current_scope = 0;
 
 	Token tok = tok_next(&parser->tok);
@@ -93,6 +94,9 @@ static inline Token* parser_getpeek(Parser* parser) {
 #define RET_IF_ERR(parser, node) do { \
 		if ((node) == NODE_ERR) return NODE_ERR; \
 	} while (0); 
+
+#define PARSER_ERR(parser, err) do { \
+	parser->error = err; } while(0)
 
 
 static inline NodeRef parser_addnode(Parser* parser, Node* node) {

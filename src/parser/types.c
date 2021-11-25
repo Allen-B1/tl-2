@@ -151,7 +151,7 @@ TypeRef typetable_add(TypeTable* table, const char* name, Type type) {
 	return ref;
 }
 
-TypeEntry* typetable_get(TypeTable* table, TypeRef ref) {
+TypeEntry* typetable_get(const TypeTable* table, TypeRef ref) {
 	return arrlist_get(&table->entries, ref);
 }
 

@@ -104,9 +104,8 @@ enum {
 
 #define TYPEREF_ERR SIZE_MAX
 
-TypeEntry* typetable_get(TypeTable* table, TypeRef ref);
+TypeEntry* typetable_get(const TypeTable* table, TypeRef ref);
 TypeRef typetable_add(TypeTable* table, const char* name, Type type);
-TypeEntry* typetable_get(TypeTable* table, TypeRef ref);
 void typetable_init(TypeTable* table);
 
 struct TypeTable {
