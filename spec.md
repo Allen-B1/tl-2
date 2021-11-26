@@ -1,10 +1,12 @@
 design: C  
  + namespaces/methods  
  + optionals & slices & `into`   
- + immutability by default  
+ + defaults (immutability, internal linkage)  
  + better string handling  
  + better stdlib?  
 `.` operator: arrays, slices, `struct`, `union` only!
+
+syntax: keywords most important to less important.
 
 # Language
 ## Types
@@ -36,10 +38,7 @@ Arrays can be indexed with bracket syntax (`arr[idx]`). Arrays cannot be passed
 by value as a function parameter.
 
 #### Vectors
- - `vec[N]T` - vector of N `T`s
-
-SIMD vector type. N must be a power of 2.
-Arithmetic operations can be performed on vectors.
+ - `vec[N]T` - vector of N `T`s, where `T` is integer or floating point type
 
 #### Pointers & Slices
  - `*T` - immutable pointer to `T`
@@ -148,7 +147,6 @@ Type F can coerce into type T iff:
  - (func -> func) F is function type and T is a function type; all arguments of F are the same as T or 
  	the argument for T can autocoerce into the argument for F
 
-
 ### Methods
 If a function's namespace is the same as a given type `T` and 
 the first argument of the function is either:
@@ -248,9 +246,6 @@ static mut buf [64]u8;
 return buf[..5];
 ```
 
-### `extern`
-An `extern` declaration declares a variable but does not define it.
-
 ### `func`
 Basically the same as C.
 
@@ -267,8 +262,7 @@ func say_hi(name [*]u8) {
 	// return null;
 }
 
-// inline functions are inlined at compile-time.
-func inline dne() {
+func dne() {
 	abort();
 	return null;
 }
@@ -285,6 +279,14 @@ func lol(arg i32, args...) {
 	// va_end called
 }
 ```
+
+### Linkage
+`func` and global `static` declarations can be annotated with one of the following keywords:
+
+ - default - internal linkage in translation unit
+ - `pub` - external linkage in translation unit
+ - `ext` - external linkage, defined elsewhere
+
 
 ## Control Flow
 ### `if`
