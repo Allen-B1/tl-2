@@ -98,6 +98,7 @@ static inline Token* parser_getpeek(Parser* parser) {
 #define PARSER_ERR(parser, err) do { \
 	parser->error = err; } while(0)
 
+#define PARSER_EXPECT_TOKEN(varname, parser, tokentype, err) if (parser_getpeek(parser)->type != (tokentype)) { RET_ERROR(parser, err); } NodeRef varname = parser_consume(parser);
 
 static inline NodeRef parser_addnode(Parser* parser, Node* node) {
 	arrlist_add(&parser->nodes, node);

@@ -6,6 +6,7 @@
 #include <stddef.h>
 
 typedef size_t TokenRef;
+#define TOKREF_ERR SIZE_MAX
 
 typedef size_t NodeRef;
 
